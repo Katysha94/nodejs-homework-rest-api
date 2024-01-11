@@ -42,8 +42,8 @@ router.get("/:contactId", async (req, res, next) => {
 router.post("/", async (req, res, next) => {
   try {
     const { error } = contactSchema.validate(req.body, { abortEarly: false });
-    const missingField = error.details[0].path[0];
     if (error) {
+      const missingField = error.details[0].path[0];
       throw HttpError(400, `missing required ${missingField} field`);
     }
     const newContact = await contacts.addContact(req.body);
