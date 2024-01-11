@@ -10,6 +10,12 @@ const contactSchema = Joi.object({
   phone: Joi.string().required(),
 });
 
+const updateSchema = Joi.object({
+  name: Joi.string(),
+  email: Joi.string(),
+  phone: Joi.string(),
+});
+
 router.get("/", async (req, res, next) => {
   try {
     const allContacts = await contacts.listContacts();
@@ -26,7 +32,7 @@ router.get("/:contactId", async (req, res, next) => {
     if (searchedContact) {
       res.status(200).json(searchedContact);
     } else {
-      res.status(404, "Not found");
+      res.status(404).json({ message: "Not found" });
     }
   } catch (err) {
     next(err);
@@ -35,9 +41,10 @@ router.get("/:contactId", async (req, res, next) => {
 
 router.post("/", async (req, res, next) => {
   try {
-    const { error } = contactSchema.validate(req.body);
+    const { error } = contactSchema.validate(req.body, { abortEarly: false });
+    const missingField = error.details[0].path[0];
     if (error) {
-      throw HttpError(400, "missing required name field");
+      throw HttpError(400, `missing required ${missingField} field`);
     }
     const newContact = await contacts.addContact(req.body);
     res.status(201).json(newContact);
@@ -62,17 +69,23 @@ router.delete("/:contactId", async (req, res, next) => {
 
 router.put("/:contactId", async (req, res, next) => {
   try {
-    const { error } = contactSchema.validate(req.body);
-    if (error) {
+    const { contactId } = req.params;
+    const existingContact = await contacts.getContactById(contactId);
+    if (!existingContact) {
+      throw HttpError(404, "Not found");
+    }
+
+    if (!req.body || Object.keys(req.body).length === 0) {
       throw HttpError(400, "missing fields");
     }
-    const contactId = req.params.contactId;
-    const updatedContact = await contacts.updateContact(contactId, req.body);
-    if (!updatedContact) {
-      throw HttpError(404, "Not found");
-    } else {
-      res.status(200).json(updatedContact);
+    const { error } = updateSchema.validate(req.body);
+    if (error) {
+      throw HttpError(400, error.message);
     }
+
+    const updatedContact = { ...existingContact, ...req.body };
+    await contacts.updateContact(contactId, updatedContact);
+    res.status(200).json(updatedContact);
   } catch (err) {
     next(err);
   }
