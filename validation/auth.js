@@ -13,4 +13,8 @@ const userSchema = Joi.object({
   subscription: Joi.string().valid(...subList),
 });
 
-module.exports = { userSchema };
+const subscriptionSchema = Joi.object({
+  subscription: Joi.string().valid("starter", "pro", "business"),
+});
+
+module.exports = { userSchema, subscriptionSchema };

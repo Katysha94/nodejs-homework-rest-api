@@ -8,7 +8,15 @@ const HttpError = require("../helpers/HttpError");
 
 async function listContacts(req, res, next) {
   const userId = req.user.id;
-  const contacts = await Contact.find({ owner: userId });
+  const { page = 1, limit = 20, favorite } = req.query;
+  const filter = { owner: userId };
+  if (favorite) {
+    filter.favorite = favorite === "true";
+  }
+
+  const skip = (page - 1) * limit;
+
+  const contacts = await Contact.find(filter, "", { skip, limit });
   res.send(contacts);
 }
 

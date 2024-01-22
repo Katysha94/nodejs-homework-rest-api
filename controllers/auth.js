@@ -90,4 +90,30 @@ async function getCurrent(req, res, next) {
   }
 }
 
-module.exports = { register, login, logout, getCurrent };
+async function updateSubscription(req, res, next) {
+  try {
+    const userId = req.user.id;
+    const { subscription } = req.body;
+
+    const subscriptionType = ["starter", "pro", "business"];
+    if (!subscriptionType.includes(subscription)) {
+      return res.status(400).json({ message: "Invalid subscription value" });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { subscription },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "Not found" });
+    }
+
+    res.status(200).json(updatedUser);
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = { register, login, logout, getCurrent, updateSubscription };
