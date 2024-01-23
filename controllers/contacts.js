@@ -23,17 +23,12 @@ async function listContacts(req, res, next) {
 async function getContactById(req, res, next) {
   try {
     const { id } = req.params;
-    const userId = req.user.id;
+    const owner = req.user.id;
 
-    const contact = await Contact.findById(id);
-
+    const contact = await Contact.findOne({ _id: id, owner });
     if (!contact) {
-      return res.status(404).json({ message: "Not found" });
+      throw HttpError(404, "Not found");
     }
-    if (contact.owner.toString() !== userId) {
-      return res.status(401).send({ message: "Not authorized" });
-    }
-
     res.status(200).json(contact);
   } catch (error) {
     next(error);
@@ -71,18 +66,14 @@ async function updateContact(req, res, next) {
     }
 
     const { id } = req.params;
-    const contact = await Contact.findById(id);
-    const userId = req.user.id;
-
-    if (contact.owner.toString() !== userId) {
-      return res.status(401).send({ message: "Not authorized" });
-    }
-
-    const updatedContact = await Contact.findByIdAndUpdate(id, req.body, {
-      new: true,
-    });
+    const owner = req.user.id;
+    const updatedContact = await Contact.findOneAndUpdate(
+      { _id: id, owner },
+      { ...req.body },
+      { new: true }
+    );
     if (!updatedContact) {
-      return res.status(404).json({ message: "Not found" });
+      throw HttpError(404, "Not found");
     }
     res.send(updatedContact);
   } catch (error) {
@@ -93,16 +84,10 @@ async function updateContact(req, res, next) {
 async function removeContact(req, res, next) {
   try {
     const { id } = req.params;
-    const contact = await Contact.findById(id);
-    const userId = req.user.id;
-
-    if (contact.owner.toString() !== userId) {
-      return res.status(401).send({ message: "Not authorized" });
-    }
-
-    const deletedContact = await Contact.findByIdAndDelete(id);
+    const owner = req.user.id;
+    const deletedContact = await Contact.findOneAndDelete({ _id: id, owner });
     if (!deletedContact) {
-      return res.status(404).json({ message: "Not found" });
+      throw HttpError(404, "Not found");
     } else {
       res.status(200).json({ message: "contact deleted" });
     }
@@ -123,20 +108,15 @@ async function updateStatusContact(req, res, next) {
 
     const { id } = req.params;
     const { favorite } = req.body;
-    const contact = await Contact.findById(id);
-    const userId = req.user.id;
+    const owner = req.user.id;
 
-    if (contact.owner.toString() !== userId) {
-      return res.status(401).send({ message: "Not authorized" });
-    }
-
-    const result = await Contact.findByIdAndUpdate(
-      id,
+    const result = await Contact.findOneAndUpdate(
+      { _id: id, owner },
       { favorite: favorite },
       { new: true }
     );
     if (!result) {
-      return res.status(404).json({ message: "Not found" });
+      throw HttpError(404, "Not found");
     }
     res.send(result);
   } catch (error) {
