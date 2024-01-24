@@ -7,21 +7,29 @@ const {
 const HttpError = require("../helpers/HttpError");
 
 async function listContacts(req, res, next) {
-  const contacts = await Contact.find();
+  const userId = req.user.id;
+  const { page = 1, limit = 20, favorite } = req.query;
+  const filter = { owner: userId };
+  if (favorite) {
+    filter.favorite = favorite === "true";
+  }
+
+  const skip = (page - 1) * limit;
+
+  const contacts = await Contact.find(filter, "", { skip, limit });
   res.send(contacts);
 }
 
 async function getContactById(req, res, next) {
   try {
     const { id } = req.params;
-    const contact = await Contact.findById(id);
+    const owner = req.user.id;
 
+    const contact = await Contact.findOne({ _id: id, owner });
     if (!contact) {
-      return res.status(404).json({ message: "Not found" });
-    } else {
-      res.status(200).json(contact);
+      throw HttpError(404, "Not found");
     }
-    res.send(contact);
+    res.status(200).json(contact);
   } catch (error) {
     next(error);
   }
@@ -33,8 +41,14 @@ async function addContact(req, res, next) {
     if (error) {
       res.status(400).json({ message: error.message });
     }
-    const { name, email, phone, favorite } = req.body;
-    const newContact = await Contact.create({ name, email, phone, favorite });
+    const contact = {
+      name: req.body.name,
+      email: req.body.email,
+      phone: req.body.phone,
+      favorite: req.body.favorite,
+      owner: req.user.id,
+    };
+    const newContact = await Contact.create(contact);
     res.status(201).send(newContact);
   } catch (error) {
     next(error);
@@ -52,12 +66,14 @@ async function updateContact(req, res, next) {
     }
 
     const { id } = req.params;
-    const contact = req.body;
-    const updatedContact = await Contact.findByIdAndUpdate(id, contact, {
-      new: true,
-    });
+    const owner = req.user.id;
+    const updatedContact = await Contact.findOneAndUpdate(
+      { _id: id, owner },
+      { ...req.body },
+      { new: true }
+    );
     if (!updatedContact) {
-      return res.status(404).json({ message: "Not found" });
+      throw HttpError(404, "Not found");
     }
     res.send(updatedContact);
   } catch (error) {
@@ -68,9 +84,10 @@ async function updateContact(req, res, next) {
 async function removeContact(req, res, next) {
   try {
     const { id } = req.params;
-    const deletedContact = await Contact.findByIdAndDelete(id);
+    const owner = req.user.id;
+    const deletedContact = await Contact.findOneAndDelete({ _id: id, owner });
     if (!deletedContact) {
-      return res.status(404).json({ message: "Not found" });
+      throw HttpError(404, "Not found");
     } else {
       res.status(200).json({ message: "contact deleted" });
     }
@@ -91,14 +108,15 @@ async function updateStatusContact(req, res, next) {
 
     const { id } = req.params;
     const { favorite } = req.body;
+    const owner = req.user.id;
 
-    const result = await Contact.findByIdAndUpdate(
-      id,
+    const result = await Contact.findOneAndUpdate(
+      { _id: id, owner },
       { favorite: favorite },
       { new: true }
     );
     if (!result) {
-      return res.status(404).json({ message: "Not found" });
+      throw HttpError(404, "Not found");
     }
     res.send(result);
   } catch (error) {
