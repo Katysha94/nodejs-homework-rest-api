@@ -129,14 +129,20 @@ async function updateSubscription(req, res, next) {
 
 async function uploadAvatar(req, res, next) {
   const userId = req.user.id;
-  const avatarURL = req.file.filename;
+
+  if (!req.file) {
+    return res.status(400).json({ error: "Missing avatar field!" });
+  }
+
   try {
     const sourcePath = req.file.path;
+    const filename = `${userId}_${req.file.originalname}`;
     const destinationPath = path.join(
       __dirname,
       "..",
-      "public/avatars",
-      req.file.filename
+      "public",
+      "avatars",
+      filename
     );
     await fs.rename(sourcePath, destinationPath);
 
@@ -144,15 +150,18 @@ async function uploadAvatar(req, res, next) {
     avatar.resize(250, 250);
     await avatar.write(destinationPath);
 
+    const avatarURL = path.join("/avatars", filename);
+
     const user = await User.findByIdAndUpdate(
       userId,
-      { avatarURL: destinationPath },
+      { avatarURL },
       { new: true }
     );
     if (!user) {
       throw HttpError(401, "Not authorized");
     }
-    res.status(200).json({ avatarURL: destinationPath });
+
+    res.status(200).json({ avatarURL });
   } catch (error) {
     next(error);
   }

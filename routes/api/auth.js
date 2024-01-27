@@ -19,7 +19,7 @@ router.patch(
 );
 
 router.patch(
-  "/avatar",
+  "/avatars",
   uploadMiddlewar.single("avatar"),
   authMiddlewar,
   AuthController.uploadAvatar
