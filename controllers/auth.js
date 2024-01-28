@@ -2,6 +2,10 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const HttpError = require("../helpers/HttpError");
 const User = require("../models/user");
+const fs = require("node:fs/promises");
+const path = require("node:path");
+const gravatar = require("gravatar");
+const jimp = require("jimp");
 
 async function register(req, res, next) {
   const { email, password } = req.body;
@@ -13,11 +17,18 @@ async function register(req, res, next) {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const newUser = await User.create({ ...req.body, password: passwordHash });
+    const avatarURL = gravatar.url(email, { protocol: "http" });
+
+    const newUser = await User.create({
+      ...req.body,
+      password: passwordHash,
+      avatarURL,
+    });
     res.status(201).json({
       user: {
         email: newUser.email,
         subscription: newUser.subscription,
+        avatarURL: newUser.avatarURL,
       },
     });
   } catch (error) {
@@ -116,4 +127,51 @@ async function updateSubscription(req, res, next) {
   }
 }
 
-module.exports = { register, login, logout, getCurrent, updateSubscription };
+async function uploadAvatar(req, res, next) {
+  const userId = req.user.id;
+
+  if (!req.file) {
+    return res.status(400).json({ error: "Missing avatar field!" });
+  }
+
+  try {
+    const sourcePath = req.file.path;
+    const filename = `${userId}_${req.file.originalname}`;
+    const destinationPath = path.join(
+      __dirname,
+      "..",
+      "public",
+      "avatars",
+      filename
+    );
+    await fs.rename(sourcePath, destinationPath);
+
+    const avatar = await jimp.read(destinationPath);
+    avatar.resize(250, 250);
+    await avatar.write(destinationPath);
+
+    const avatarURL = path.join("/avatars", filename);
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      { avatarURL },
+      { new: true }
+    );
+    if (!user) {
+      throw HttpError(401, "Not authorized");
+    }
+
+    res.status(200).json({ avatarURL });
+  } catch (error) {
+    next(error);
+  }
+}
+
+module.exports = {
+  register,
+  login,
+  logout,
+  getCurrent,
+  updateSubscription,
+  uploadAvatar,
+};
