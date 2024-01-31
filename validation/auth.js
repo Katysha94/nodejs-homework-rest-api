@@ -12,9 +12,15 @@ const userSchema = Joi.object({
   }),
   subscription: Joi.string().valid(...subList),
 });
+const emailSchema = Joi.object({
+  email: Joi.string()
+    .email()
+    .required()
+    .messages({ "any.required": "Missing required field email" }),
+});
 
 const subscriptionSchema = Joi.object({
   subscription: Joi.string().valid("starter", "pro", "business"),
 });
 
-module.exports = { userSchema, subscriptionSchema };
+module.exports = { userSchema, subscriptionSchema, emailSchema };

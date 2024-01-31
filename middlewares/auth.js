@@ -22,6 +22,10 @@ async function auth(req, res, next) {
       return res.status(401).send({ message: "Not authorized" });
     }
 
+    if (!user.verify) {
+      throw HttpError(401, "Your email is not verifeid");
+    }
+
     req.user = { id: decode.id };
 
     next();
