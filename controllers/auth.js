@@ -6,6 +6,10 @@ const fs = require("node:fs/promises");
 const path = require("node:path");
 const gravatar = require("gravatar");
 const jimp = require("jimp");
+const { nanoid } = require("nanoid");
+
+const sendEmail = require("../helpers/sendEmail");
+const { BASE_URL } = process.env;
 
 async function register(req, res, next) {
   const { email, password } = req.body;
@@ -19,8 +23,19 @@ async function register(req, res, next) {
 
     const avatarURL = gravatar.url(email, { protocol: "http" });
 
+    const verificationToken = nanoid();
+
+    await sendEmail({
+      to: email,
+      from: "vasilevakata76@gmail.com",
+      subject: "Verify email",
+      html: `To confirm your registration please click on the <a href="${BASE_URL}/api/users/verify/${verificationToken}">link</a>`,
+      text: `To confirm your registration please click on the <a href="${BASE_URL}/api/users/verify/${verificationToken}">link</a>`,
+    });
+
     const newUser = await User.create({
       ...req.body,
+      verificationToken,
       password: passwordHash,
       avatarURL,
     });
@@ -31,6 +46,52 @@ async function register(req, res, next) {
         avatarURL: newUser.avatarURL,
       },
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+async function verifyEmail(req, res, next) {
+  const { verificationToken } = req.params;
+
+  try {
+    const user = await User.findOne({ verificationToken });
+    if (!user) {
+      throw HttpError(404, "User not found");
+    }
+
+    await User.findByIdAndUpdate(user._id, {
+      verify: true,
+      verificationToken: null,
+    });
+
+    res.status(200).json({ message: "Verification successful" });
+  } catch (error) {
+    next(error);
+  }
+  res.end();
+}
+
+async function resendVerifyEmail(req, res, next) {
+  const { email } = req.body;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      throw HttpError(404, "User not found");
+    }
+    if (user.verify) {
+      throw HttpError(400, "Verification has already been passed!");
+    }
+
+    await sendEmail({
+      to: email,
+      from: "vasilevakata76@gmail.com",
+      subject: "Verify email",
+      html: `To confirm your registration please click on the <a href="${BASE_URL}/api/users/verify/${user.verificationToken}">link</a>`,
+      text: `To confirm your registration please click on the <a href="${BASE_URL}/api/users/verify/${user.verificationToken}">link</a>`,
+    });
+
+    res.status(200).json({ message: "Verification email sent" });
   } catch (error) {
     next(error);
   }
@@ -47,6 +108,10 @@ async function login(req, res, next) {
 
     if (isMatch === false) {
       throw HttpError(401, "Email or password is wrong!");
+    }
+
+    if (!user.verify) {
+      throw HttpError(401, "Your email is not verifeid");
     }
 
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
@@ -169,6 +234,8 @@ async function uploadAvatar(req, res, next) {
 
 module.exports = {
   register,
+  verifyEmail,
+  resendVerifyEmail,
   login,
   logout,
   getCurrent,
